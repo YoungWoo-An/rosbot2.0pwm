@@ -7,12 +7,15 @@
 #include <rosbot_kinematics.h>
 #include <rosbot_sensors.h>
 #include <ImuDriver.h>
+#include <GPS.h>
 #include <ros.h>
 #include <sensor_msgs/JointState.h>
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <std_msgs/UInt32.h>
+#include <std_msgs/Float32.h>
 #include <sensor_msgs/Imu.h>
+#include <sensor_msgs/NavSatFix.h>
 // #include <rosbot_ekf/Imu.h>
 
 #ifndef ROS_NOETIC_MSGS
@@ -75,6 +78,16 @@ static int parseColorStr(const char *color_str, Color_t *color_ptr)
 #define IMU_I2C_SCL SENS2_PIN3
 #define IMU_I2C_SDA SENS2_PIN4
 
+#define GPS1_TX SENS4_PIN3
+#define GPS1_RX SENS4_PIN4
+#define GPS1_BaudRATE 9600
+
+#define GPS2_TX SENS5_PIN3
+#define GPS2_RX SENS5_PIN4
+#define GPS2_BaudRATE 9600
+
+
+
 extern Mail<ImuDriver::ImuMesurement, 10> imu_sensor_mail_box;
 const char *imu_sensor_type_string[] = {
     "BNO055_ADDR_A",
@@ -91,8 +104,15 @@ sensor_msgs::BatteryState battery_state;
 sensor_msgs::Range range_msg[4];
 geometry_msgs::PoseStamped pose;
 std_msgs::UInt8 button_msg;
+std_msgs::Float32 pwm_msg1;
+std_msgs::Float32 pwm_msg2;
+std_msgs::Float32 pwm_msg3;
+std_msgs::Float32 pwm_msg4;
 // rosbot_ekf::Imu imu_msg;
-sensor_msgs::Imu imu_msg;
+sensor_msgs::Imu imu_msg1;
+// sensor_msgs::Imu imu_msg2;
+sensor_msgs::NavSatFix gps_msg1;
+sensor_msgs::NavSatFix gps_msg2;
 ros::NodeHandle nh;
 ros::Publisher *vel_pub;
 ros::Publisher *joint_state_pub;
@@ -100,7 +120,14 @@ ros::Publisher *battery_pub;
 ros::Publisher *range_pub[4];
 ros::Publisher *pose_pub;
 ros::Publisher *button_pub;
-ros::Publisher *imu_pub;
+ros::Publisher *imu_pub1;
+// ros::Publisher *imu_pub2;
+ros::Publisher *gps_pub1;
+ros::Publisher *gps_pub2;
+ros::Publisher *pwm_pub1;
+ros::Publisher *pwm_pub2;
+ros::Publisher *pwm_pub3;
+ros::Publisher *pwm_pub4;
 geometry_msgs::TransformStamped robot_tf;
 tf::TransformBroadcaster broadcaster;
 
@@ -117,7 +144,7 @@ rosbot_kinematics::RosbotKinematics *rk = &diff_drive_kinematics;
 #if JOINT_STATES_ENABLE
 volatile bool joint_states_enabled = true;
 #else
-volatile bool joint_states_enabled = false;
+volatile bool joint_states_enabled = true;
 #endif
 
 volatile bool distance_sensors_enabled = false;
@@ -131,6 +158,11 @@ InterruptIn button1(BUTTON1);
 InterruptIn button2(BUTTON2);
 volatile bool button1_publish_flag = false;
 volatile bool button2_publish_flag = false;
+
+volatile bool pwm_publish_flag1 = true;
+volatile bool pwm_publish_flag2 = true;
+volatile bool pwm_publish_flag3 = true;
+volatile bool pwm_publish_flag4 = true;
 
 volatile bool is_speed_watchdog_enabled = true;
 volatile bool is_speed_watchdog_active = false;
@@ -161,31 +193,89 @@ double eff[] = {0, 0, 0, 0};
 const char *range_id[] = {"range_fr", "range_fl", "range_rr", "range_rl"};
 const char *range_pub_names[] = {"range/fr", "range/fl", "range/rr", "range/rl"};
 
-static void initImuPublisher()
+static void initImuPublisher1()
 {
-    imu_pub = new ros::Publisher("imu", &imu_msg);
+    imu_pub1 = new ros::Publisher("imu1", &imu_msg1);
 
-    imu_msg.header.frame_id = "imu_link";
+    imu_msg1.header.frame_id = "imu_link1";
 
-    imu_msg.orientation_covariance[0] = 0.05;
-    imu_msg.orientation_covariance[4] = 0.05;
-    imu_msg.orientation_covariance[8] = 0.05;
+    imu_msg1.orientation_covariance[0] = 0.05;
+    imu_msg1.orientation_covariance[4] = 0.05;
+    imu_msg1.orientation_covariance[8] = 0.05;
 
-    imu_msg.angular_velocity_covariance[0] = 0.1;
-    imu_msg.angular_velocity_covariance[4] = 0.1;
-    imu_msg.angular_velocity_covariance[8] = 0.1;
+    imu_msg1.angular_velocity_covariance[0] = 0.1;
+    imu_msg1.angular_velocity_covariance[4] = 0.1;
+    imu_msg1.angular_velocity_covariance[8] = 0.1;
 
-    imu_msg.linear_acceleration_covariance[0] = 0.5;
-    imu_msg.linear_acceleration_covariance[4] = 0.5;
-    imu_msg.linear_acceleration_covariance[8] = 0.5;
+    imu_msg1.linear_acceleration_covariance[0] = 0.5;
+    imu_msg1.linear_acceleration_covariance[4] = 0.5;
+    imu_msg1.linear_acceleration_covariance[8] = 0.5;
 
-    nh.advertise(*imu_pub);
+    nh.advertise(*imu_pub1);
 }
+
+// static void initImuPublisher2()
+// {
+//     imu_pub2 = new ros::Publisher("imu2", &imu_msg2);
+
+//     imu_msg2.header.frame_id = "imu_link2";
+
+//     imu_msg2.orientation_covariance[0] = 0.05;
+//     imu_msg2.orientation_covariance[4] = 0.05;
+//     imu_msg2.orientation_covariance[8] = 0.05;
+
+//     imu_msg2.angular_velocity_covariance[0] = 0.1;
+//     imu_msg2.angular_velocity_covariance[4] = 0.1;
+//     imu_msg2.angular_velocity_covariance[8] = 0.1;
+
+//     imu_msg2.linear_acceleration_covariance[0] = 0.5;
+//     imu_msg2.linear_acceleration_covariance[4] = 0.5;
+//     imu_msg2.linear_acceleration_covariance[8] = 0.5;
+
+//     nh.advertise(*imu_pub2);
+// }
 
 static void initButtonPublisher()
 {
     button_pub = new ros::Publisher("buttons", &button_msg);
     nh.advertise(*button_pub);
+}
+
+static void initGPSPublisher1()
+{
+    gps_pub1 = new ros::Publisher("gps1", &gps_msg1);
+    nh.advertise(*gps_pub1);
+}
+
+static void initGPSPublisher2()
+{
+    gps_pub2 = new ros::Publisher("gps2", &gps_msg2);
+    nh.advertise(*gps_pub2);
+}
+
+static void initPwmPublisher1()
+{
+    pwm_pub1 = new ros::Publisher("pwm1", &pwm_msg1);
+    nh.advertise(*pwm_pub1);
+}
+
+static void initPwmPublisher2()
+{
+    pwm_pub2 = new ros::Publisher("pwm2", &pwm_msg2);
+    nh.advertise(*pwm_pub2);
+}
+
+static void initPwmPublisher3()
+{
+
+    pwm_pub3 = new ros::Publisher("pwm3", &pwm_msg3);
+    nh.advertise(*pwm_pub3);
+}
+
+static void initPwmPublisher4()
+{
+    pwm_pub4 = new ros::Publisher("pwm4", &pwm_msg4);
+    nh.advertise(*pwm_pub4);
 }
 
 static void initRangePublisher()
@@ -916,7 +1006,7 @@ int print_debug_info()
     printf("\nDone...\n\n");
 }
 #endif /* MEMORY_DEBUG_INFO */
-
+// start main here
 int main()
 {
     int spin_result;
@@ -955,7 +1045,11 @@ int main()
     {
         distance_sensors_init_flag = true;
     }
+    
+    GPS gps1(GPS1_TX, GPS1_RX, GPS1_BaudRATE);
+    GPS gps2(GPS2_TX, GPS2_RX, GPS2_BaudRATE);
 
+    
     I2C *i2c_ptr = new I2C(IMU_I2C_SDA, IMU_I2C_SCL);
     i2c_ptr->frequency(IMU_I2C_FREQUENCY);
 
@@ -983,8 +1077,15 @@ int main()
     initVelocityPublisher();
     initRangePublisher();
     initJointStatePublisher();
-    initImuPublisher();
+    initImuPublisher1();
+    // initImuPublisher2();
     initButtonPublisher();
+    initGPSPublisher1();
+    initGPSPublisher2();
+    initPwmPublisher1();
+    initPwmPublisher2();
+    initPwmPublisher3();
+    initPwmPublisher4();
 
 #if USE_WS2812B_ANIMATION_MANAGER
     anim_manager = AnimationManager::getInstance();
@@ -1052,6 +1153,66 @@ int main()
                 if (nh.connected())
                     button_pub->publish(&button_msg);
             }
+        }
+
+        if (true) // gps1
+        {
+            
+            gps_msg1.latitude = gps1.latitude;
+            gps_msg1.longitude = gps1.longitude;
+
+            if (nh.connected())
+                gps_pub1->publish(&gps_msg1);
+
+        }
+
+        if (true) // gps2
+        {
+            gps_msg2.latitude = gps2.latitude;
+            gps_msg2.longitude = gps2.longitude;
+
+            if (nh.connected())
+                gps_pub2->publish(&gps_msg2);
+        }
+
+        if (pwm_publish_flag1)
+        {   
+            // Get duty cycle 
+            // '(RosbotMotNum)1' corresponds to Motor1 
+            pwm_msg1.data = 1-RosbotDrive::getInstance().getSpeed((RosbotMotNum)0, SpeedMode::DUTY_CYCLE);
+
+            if (nh.connected())
+                pwm_pub1->publish(&pwm_msg1);
+        }
+
+        if (pwm_publish_flag2)
+        {   
+            // Get duty cycle 
+            // '(RosbotMotNum)1' corresponds to Motor1 
+            pwm_msg2.data = 1-RosbotDrive::getInstance().getSpeed((RosbotMotNum)1, SpeedMode::DUTY_CYCLE);
+
+            if (nh.connected())
+                pwm_pub2->publish(&pwm_msg2);
+        }
+
+        if (pwm_publish_flag3)
+        {   
+            // Get duty cycle 
+            // '(RosbotMotNum)1' corresponds to Motor1 
+            pwm_msg3.data = 1-RosbotDrive::getInstance().getSpeed((RosbotMotNum)2, SpeedMode::DUTY_CYCLE);
+
+            if (nh.connected())
+                pwm_pub3->publish(&pwm_msg3);
+        }
+
+        if (pwm_publish_flag4)
+        {   
+            // Get duty cycle 
+            // '(RosbotMotNum)1' corresponds to Motor1 
+            pwm_msg4.data = 1-RosbotDrive::getInstance().getSpeed((RosbotMotNum)3, SpeedMode::DUTY_CYCLE);
+
+            if (nh.connected())
+                pwm_pub4->publish(&pwm_msg4);
         }
 
         if (spin_count % 5 == 0) /// cmd_vel, odometry, joint_states, tf messages
@@ -1158,26 +1319,53 @@ int main()
 
             if (nh.connected())
             {
-                imu_msg.header.stamp = nh.now(message->timestamp);
+                imu_msg1.header.stamp = nh.now(message->timestamp);
 
-                imu_msg.orientation.x = message->orientation[0];
-                imu_msg.orientation.y = message->orientation[1];
-                imu_msg.orientation.z = message->orientation[2];
-                imu_msg.orientation.w = message->orientation[3];
+                imu_msg1.orientation.x = message->orientation[0];
+                imu_msg1.orientation.y = message->orientation[1];
+                imu_msg1.orientation.z = message->orientation[2];
+                imu_msg1.orientation.w = message->orientation[3];
 
-                imu_msg.angular_velocity.x = message->angular_velocity[0];
-                imu_msg.angular_velocity.y = message->angular_velocity[1];
-                imu_msg.angular_velocity.z = message->angular_velocity[2];
+                imu_msg1.angular_velocity.x = message->angular_velocity[0];
+                imu_msg1.angular_velocity.y = message->angular_velocity[1];
+                imu_msg1.angular_velocity.z = message->angular_velocity[2];
 
-                imu_msg.linear_acceleration.x = message->linear_acceleration[0];
-                imu_msg.linear_acceleration.y = message->linear_acceleration[1];
-                imu_msg.linear_acceleration.z = message->linear_acceleration[2];
+                imu_msg1.linear_acceleration.x = message->linear_acceleration[0];
+                imu_msg1.linear_acceleration.y = message->linear_acceleration[1];
+                imu_msg1.linear_acceleration.z = message->linear_acceleration[2];
 
-                imu_pub->publish(&imu_msg);
+                imu_pub1->publish(&imu_msg1);
             }
 
             imu_sensor_mail_box.free(message);
         }
+
+        // if (evt2.status == osEventMail)
+        // {
+        //     ImuDriver::ImuMesurement *message = (ImuDriver::ImuMesurement *)evt2.value.p;
+
+        //     if (nh.connected())
+        //     {
+        //         imu_msg2.header.stamp = nh.now(message->timestamp);
+
+        //         imu_msg2.orientation.x = message->orientation[0];
+        //         imu_msg2.orientation.y = message->orientation[1];
+        //         imu_msg2.orientation.z = message->orientation[2];
+        //         imu_msg2.orientation.w = message->orientation[3];
+
+        //         imu_msg2.angular_velocity.x = message->angular_velocity[0];
+        //         imu_msg2.angular_velocity.y = message->angular_velocity[1];
+        //         imu_msg2.angular_velocity.z = message->angular_velocity[2];
+
+        //         imu_msg2.linear_acceleration.x = message->linear_acceleration[0];
+        //         imu_msg2.linear_acceleration.y = message->linear_acceleration[1];
+        //         imu_msg2.linear_acceleration.z = message->linear_acceleration[2];
+
+        //         imu_pub2->publish(&imu_msg2);
+        //     }
+
+        //     imu_sensor_mail_box.free(message);
+        // }
 
         // LOGS
         if (nh.connected())

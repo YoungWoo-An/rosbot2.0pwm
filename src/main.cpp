@@ -78,15 +78,6 @@ static int parseColorStr(const char *color_str, Color_t *color_ptr)
 #define IMU_I2C_SCL SENS2_PIN3
 #define IMU_I2C_SDA SENS2_PIN4
 
-#define GPS1_TX SENS4_PIN3
-#define GPS1_RX SENS4_PIN4
-#define GPS1_BaudRATE 9600
-
-#define GPS2_TX SENS5_PIN3
-#define GPS2_RX SENS5_PIN4
-#define GPS2_BaudRATE 9600
-
-
 
 extern Mail<ImuDriver::ImuMesurement, 10> imu_sensor_mail_box;
 const char *imu_sensor_type_string[] = {
@@ -247,11 +238,11 @@ static void initGPSPublisher1()
     nh.advertise(*gps_pub1);
 }
 
-static void initGPSPublisher2()
-{
-    gps_pub2 = new ros::Publisher("gps2", &gps_msg2);
-    nh.advertise(*gps_pub2);
-}
+// static void initGPSPublisher2()
+// {
+//     gps_pub2 = new ros::Publisher("gps2", &gps_msg2);
+//     nh.advertise(*gps_pub2);
+// }
 
 static void initPwmPublisher1()
 {
@@ -1045,9 +1036,14 @@ int main()
     {
         distance_sensors_init_flag = true;
     }
+
+    GPS gps1(SENS4_PIN3, SENS4_PIN4, 9600);
+
     
-    GPS gps1(GPS1_TX, GPS1_RX, GPS1_BaudRATE);
-    GPS gps2(GPS2_TX, GPS2_RX, GPS2_BaudRATE);
+
+    // GPS gps2(SENS5_PIN3, SENS5_PIN4, 9600);
+
+
 
     
     I2C *i2c_ptr = new I2C(IMU_I2C_SDA, IMU_I2C_SCL);
@@ -1080,12 +1076,13 @@ int main()
     initImuPublisher1();
     // initImuPublisher2();
     initButtonPublisher();
-    initGPSPublisher1();
-    initGPSPublisher2();
     initPwmPublisher1();
     initPwmPublisher2();
     initPwmPublisher3();
     initPwmPublisher4();
+    initGPSPublisher1();
+    // initGPSPublisher2();
+    
 
 #if USE_WS2812B_ANIMATION_MANAGER
     anim_manager = AnimationManager::getInstance();
@@ -1157,23 +1154,25 @@ int main()
 
         if (true) // gps1
         {
-            
+            gps1.sample();
             gps_msg1.latitude = gps1.latitude;
             gps_msg1.longitude = gps1.longitude;
+
+            gps_msg1.status.status = gps1.sats;
 
             if (nh.connected())
                 gps_pub1->publish(&gps_msg1);
 
         }
 
-        if (true) // gps2
-        {
-            gps_msg2.latitude = gps2.latitude;
-            gps_msg2.longitude = gps2.longitude;
+        // if (true) // gps2
+        // {
+        //     gps_msg2.latitude = gps2.latitude;
+        //     gps_msg2.longitude = gps2.longitude;
 
-            if (nh.connected())
-                gps_pub2->publish(&gps_msg2);
-        }
+        //     if (nh.connected())
+        //         gps_pub2->publish(&gps_msg2);
+        // }
 
         if (pwm_publish_flag1)
         {   

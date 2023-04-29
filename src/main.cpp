@@ -7,7 +7,7 @@
 #include <rosbot_kinematics.h>
 #include <rosbot_sensors.h>
 #include <ImuDriver.h>
-#include <GPS.h>
+#include <gps.h>
 #include <ros.h>
 #include <sensor_msgs/JointState.h>
 #include <geometry_msgs/Twist.h>
@@ -1154,15 +1154,16 @@ int main()
 
         if (true) // gps1
         {
-            gps1.sample();
+            gps1.update();
             gps_msg1.latitude = gps1.latitude;
             gps_msg1.longitude = gps1.longitude;
 
-            gps_msg1.status.status = gps1.sats;
+            
 
             if (nh.connected())
                 gps_pub1->publish(&gps_msg1);
 
+            
         }
 
         // if (true) // gps2

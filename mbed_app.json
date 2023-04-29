@@ -8,11 +8,12 @@
             "platform.all-stats-enabled": false,
             "events.shared-dispatch-from-application": 0,
             "events.shared-eventsize": 1024,
-            "events.shared-stacksize": 2048,
+            "events.shared-stacksize": 1024,
+            "rtos.main-thread-stack-size": 10240,
             "platform.default-serial-baud-rate": 230400,
             "platform.stdio-baud-rate": 230400,
-            "drivers.uart-serial-rxbuf-size": 768, 
-            "drivers.uart-serial-txbuf-size": 768
+            "drivers.uart-serial-rxbuf-size": 1024,
+            "drivers.uart-serial-txbuf-size": 1024 
         }
     }
 }

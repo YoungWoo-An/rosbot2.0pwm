@@ -1158,6 +1158,8 @@ int main()
             gps_msg1.latitude = gps1.latitude;
             gps_msg1.longitude = gps1.longitude;
 
+            // gps_msg1.status.status = gps1.nsats;
+
             
 
             if (nh.connected())

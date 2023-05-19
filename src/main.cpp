@@ -3,11 +3,11 @@
  *
  * @author Husarion
  * @copyright MIT
+ * git submodule update --init --recursive
  */
 #include <rosbot_kinematics.h>
 #include <rosbot_sensors.h>
 #include <ImuDriver.h>
-#include <gps.h>
 #include <ros.h>
 #include <sensor_msgs/JointState.h>
 #include <geometry_msgs/Twist.h>
@@ -100,10 +100,7 @@ std_msgs::Float32 pwm_msg2;
 std_msgs::Float32 pwm_msg3;
 std_msgs::Float32 pwm_msg4;
 // rosbot_ekf::Imu imu_msg;
-sensor_msgs::Imu imu_msg1;
-// sensor_msgs::Imu imu_msg2;
-sensor_msgs::NavSatFix gps_msg1;
-sensor_msgs::NavSatFix gps_msg2;
+sensor_msgs::Imu imu_msg;
 ros::NodeHandle nh;
 ros::Publisher *vel_pub;
 ros::Publisher *joint_state_pub;
@@ -111,10 +108,7 @@ ros::Publisher *battery_pub;
 ros::Publisher *range_pub[4];
 ros::Publisher *pose_pub;
 ros::Publisher *button_pub;
-ros::Publisher *imu_pub1;
-// ros::Publisher *imu_pub2;
-ros::Publisher *gps_pub1;
-ros::Publisher *gps_pub2;
+ros::Publisher *imu_pub;
 ros::Publisher *pwm_pub1;
 ros::Publisher *pwm_pub2;
 ros::Publisher *pwm_pub3;
@@ -184,65 +178,33 @@ double eff[] = {0, 0, 0, 0};
 const char *range_id[] = {"range_fr", "range_fl", "range_rr", "range_rl"};
 const char *range_pub_names[] = {"range/fr", "range/fl", "range/rr", "range/rl"};
 
-static void initImuPublisher1()
+static void initImuPublisher()
 {
-    imu_pub1 = new ros::Publisher("imu1", &imu_msg1);
+    imu_pub = new ros::Publisher("imu1", &imu_msg);
 
-    imu_msg1.header.frame_id = "imu_link1";
+    imu_msg.header.frame_id = "imu_link1";
 
-    imu_msg1.orientation_covariance[0] = 0.05;
-    imu_msg1.orientation_covariance[4] = 0.05;
-    imu_msg1.orientation_covariance[8] = 0.05;
+    imu_msg.orientation_covariance[0] = 0.05;
+    imu_msg.orientation_covariance[4] = 0.05;
+    imu_msg.orientation_covariance[8] = 0.05;
 
-    imu_msg1.angular_velocity_covariance[0] = 0.1;
-    imu_msg1.angular_velocity_covariance[4] = 0.1;
-    imu_msg1.angular_velocity_covariance[8] = 0.1;
+    imu_msg.angular_velocity_covariance[0] = 0.1;
+    imu_msg.angular_velocity_covariance[4] = 0.1;
+    imu_msg.angular_velocity_covariance[8] = 0.1;
 
-    imu_msg1.linear_acceleration_covariance[0] = 0.5;
-    imu_msg1.linear_acceleration_covariance[4] = 0.5;
-    imu_msg1.linear_acceleration_covariance[8] = 0.5;
+    imu_msg.linear_acceleration_covariance[0] = 0.5;
+    imu_msg.linear_acceleration_covariance[4] = 0.5;
+    imu_msg.linear_acceleration_covariance[8] = 0.5;
 
-    nh.advertise(*imu_pub1);
+    nh.advertise(*imu_pub);
 }
 
-// static void initImuPublisher2()
-// {
-//     imu_pub2 = new ros::Publisher("imu2", &imu_msg2);
-
-//     imu_msg2.header.frame_id = "imu_link2";
-
-//     imu_msg2.orientation_covariance[0] = 0.05;
-//     imu_msg2.orientation_covariance[4] = 0.05;
-//     imu_msg2.orientation_covariance[8] = 0.05;
-
-//     imu_msg2.angular_velocity_covariance[0] = 0.1;
-//     imu_msg2.angular_velocity_covariance[4] = 0.1;
-//     imu_msg2.angular_velocity_covariance[8] = 0.1;
-
-//     imu_msg2.linear_acceleration_covariance[0] = 0.5;
-//     imu_msg2.linear_acceleration_covariance[4] = 0.5;
-//     imu_msg2.linear_acceleration_covariance[8] = 0.5;
-
-//     nh.advertise(*imu_pub2);
-// }
 
 static void initButtonPublisher()
 {
     button_pub = new ros::Publisher("buttons", &button_msg);
     nh.advertise(*button_pub);
 }
-
-static void initGPSPublisher1()
-{
-    gps_pub1 = new ros::Publisher("gps1", &gps_msg1);
-    nh.advertise(*gps_pub1);
-}
-
-// static void initGPSPublisher2()
-// {
-//     gps_pub2 = new ros::Publisher("gps2", &gps_msg2);
-//     nh.advertise(*gps_pub2);
-// }
 
 static void initPwmPublisher1()
 {
@@ -1037,14 +999,6 @@ int main()
         distance_sensors_init_flag = true;
     }
 
-    GPS gps1(SENS4_PIN3, SENS4_PIN4, 9600);
-
-    
-
-    // GPS gps2(SENS5_PIN3, SENS5_PIN4, 9600);
-
-
-
     
     I2C *i2c_ptr = new I2C(IMU_I2C_SDA, IMU_I2C_SCL);
     i2c_ptr->frequency(IMU_I2C_FREQUENCY);
@@ -1073,15 +1027,12 @@ int main()
     initVelocityPublisher();
     initRangePublisher();
     initJointStatePublisher();
-    initImuPublisher1();
-    // initImuPublisher2();
+    initImuPublisher();
     initButtonPublisher();
     initPwmPublisher1();
     initPwmPublisher2();
     initPwmPublisher3();
     initPwmPublisher4();
-    initGPSPublisher1();
-    // initGPSPublisher2();
     
 
 #if USE_WS2812B_ANIMATION_MANAGER
@@ -1152,30 +1103,6 @@ int main()
             }
         }
 
-        if (true) // gps1
-        {
-            gps1.update();
-            gps_msg1.latitude = gps1.latitude;
-            gps_msg1.longitude = gps1.longitude;
-
-            // gps_msg1.status.status = gps1.nsats;
-
-            
-
-            if (nh.connected())
-                gps_pub1->publish(&gps_msg1);
-
-            
-        }
-
-        // if (true) // gps2
-        // {
-        //     gps_msg2.latitude = gps2.latitude;
-        //     gps_msg2.longitude = gps2.longitude;
-
-        //     if (nh.connected())
-        //         gps_pub2->publish(&gps_msg2);
-        // }
 
         if (pwm_publish_flag1)
         {   
@@ -1321,53 +1248,26 @@ int main()
 
             if (nh.connected())
             {
-                imu_msg1.header.stamp = nh.now(message->timestamp);
+                imu_msg.header.stamp = nh.now(message->timestamp);
 
-                imu_msg1.orientation.x = message->orientation[0];
-                imu_msg1.orientation.y = message->orientation[1];
-                imu_msg1.orientation.z = message->orientation[2];
-                imu_msg1.orientation.w = message->orientation[3];
+                imu_msg.orientation.x = message->orientation[0];
+                imu_msg.orientation.y = message->orientation[1];
+                imu_msg.orientation.z = message->orientation[2];
+                imu_msg.orientation.w = message->orientation[3];
 
-                imu_msg1.angular_velocity.x = message->angular_velocity[0];
-                imu_msg1.angular_velocity.y = message->angular_velocity[1];
-                imu_msg1.angular_velocity.z = message->angular_velocity[2];
+                imu_msg.angular_velocity.x = message->angular_velocity[0];
+                imu_msg.angular_velocity.y = message->angular_velocity[1];
+                imu_msg.angular_velocity.z = message->angular_velocity[2];
 
-                imu_msg1.linear_acceleration.x = message->linear_acceleration[0];
-                imu_msg1.linear_acceleration.y = message->linear_acceleration[1];
-                imu_msg1.linear_acceleration.z = message->linear_acceleration[2];
+                imu_msg.linear_acceleration.x = message->linear_acceleration[0];
+                imu_msg.linear_acceleration.y = message->linear_acceleration[1];
+                imu_msg.linear_acceleration.z = message->linear_acceleration[2];
 
-                imu_pub1->publish(&imu_msg1);
+                imu_pub->publish(&imu_msg);
             }
 
             imu_sensor_mail_box.free(message);
         }
-
-        // if (evt2.status == osEventMail)
-        // {
-        //     ImuDriver::ImuMesurement *message = (ImuDriver::ImuMesurement *)evt2.value.p;
-
-        //     if (nh.connected())
-        //     {
-        //         imu_msg2.header.stamp = nh.now(message->timestamp);
-
-        //         imu_msg2.orientation.x = message->orientation[0];
-        //         imu_msg2.orientation.y = message->orientation[1];
-        //         imu_msg2.orientation.z = message->orientation[2];
-        //         imu_msg2.orientation.w = message->orientation[3];
-
-        //         imu_msg2.angular_velocity.x = message->angular_velocity[0];
-        //         imu_msg2.angular_velocity.y = message->angular_velocity[1];
-        //         imu_msg2.angular_velocity.z = message->angular_velocity[2];
-
-        //         imu_msg2.linear_acceleration.x = message->linear_acceleration[0];
-        //         imu_msg2.linear_acceleration.y = message->linear_acceleration[1];
-        //         imu_msg2.linear_acceleration.z = message->linear_acceleration[2];
-
-        //         imu_pub2->publish(&imu_msg2);
-        //     }
-
-        //     imu_sensor_mail_box.free(message);
-        // }
 
         // LOGS
         if (nh.connected())
